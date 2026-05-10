@@ -151,6 +151,8 @@ SINGLE_FQ="$OUTDIR/intermediate/${SAMPLE}.single.fastq.gz"
 
 NUC_BAM="$OUTDIR/intermediate/${SAMPLE}.mt_related_to_nuclear.sorted.bam"
 NUC_BAI="$OUTDIR/intermediate/${SAMPLE}.mt_related_to_nuclear.sorted.bam.bai"
+NUC_BAM_TMP="$OUTDIR/intermediate/${SAMPLE}.mt_related_to_nuclear.sorted.bam.tmp"
+NUC_BAI_TMP="$OUTDIR/intermediate/${SAMPLE}.mt_related_to_nuclear.sorted.bam.tmp.bai"
 
 BED_OUT="$OUTDIR/${SAMPLE}.numt_candidates.bed"
 TSV_OUT="$OUTDIR/${SAMPLE}.numt_candidates.tsv"
@@ -197,14 +199,25 @@ samtools fastq \
 ########################################
 echo "[$(date)] Step 4: remapping to nuclear-only reference"
 
+# avoid stale/truncated outputs from interrupted previous runs
+rm -f "$NUC_BAM" "$NUC_BAI" "$NUC_BAM_TMP" "$NUC_BAI_TMP"
+
 bwa mem \
   -t "$THREADS" \
   -K 100000000 \
   "$NUCLEAR_REF" \
   "$R1_FQ" "$R2_FQ" \
-  | samtools sort -@ "$THREADS" -o "$NUC_BAM" -
+  | samtools sort -@ "$THREADS" -o "$NUC_BAM_TMP" -
 
-samtools index -@ "$THREADS" "$NUC_BAM" "$NUC_BAI"
+# validate BAM integrity before moving to final path
+samtools quickcheck -v "$NUC_BAM_TMP"
+samtools index -@ "$THREADS" "$NUC_BAM_TMP" "$NUC_BAI_TMP"
+samtools quickcheck -v "$NUC_BAM_TMP"
+
+mv "$NUC_BAM_TMP" "$NUC_BAM"
+mv "$NUC_BAI_TMP" "$NUC_BAI"
+
+echo "[$(date)] Step 4 check: BAM + BAI ready"
 
 ########################################
 # Step 5. discover sink loci
