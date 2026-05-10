@@ -25,7 +25,6 @@ BESTHIT_OUTDIR=/path/to/primate_results_numt_besthit
 # ---------- Slurm array mode (required) ----------
 # 3-column tsv:
 # col1 sample_id, col2 real species, col3 reference species name
-SAMPLES_FILE=/path/to/primate_numt_test_list.txt
 SAMPLES_TSV=/path/to/primate_numt_test_list.txt
 
 CRAM_ROOT_1=/path/to/cram_root_1

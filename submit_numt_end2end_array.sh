@@ -14,7 +14,7 @@ Usage:
   bash submit_numt_end2end_array.sh --config numt_pipeline.config [--concurrent 50]
 
 Required config keys for array mode:
-  SAMPLES_FILE           # 3-column tsv: sample_id, real_species, ref_species
+  SAMPLES_TSV            # 3-column tsv: sample_id, real_species, ref_species
   CRAM_ROOT_1
   CRAM_ROOT_2
   WHOLE_REF_DIR
@@ -41,7 +41,8 @@ done
 # shellcheck disable=SC1090
 source "$CONFIG"
 
-: "${SAMPLES_FILE:?missing SAMPLES_FILE in config}"
+: "${SAMPLES_TSV:=${SAMPLES_FILE:-}}"
+: "${SAMPLES_TSV:?missing SAMPLES_TSV in config}"
 : "${CRAM_ROOT_1:?missing CRAM_ROOT_1 in config}"
 : "${CRAM_ROOT_2:?missing CRAM_ROOT_2 in config}"
 : "${WHOLE_REF_DIR:?missing WHOLE_REF_DIR in config}"
@@ -50,18 +51,18 @@ source "$CONFIG"
 : "${DISCOVERY_OUTROOT:?missing DISCOVERY_OUTROOT in config}"
 : "${BESTHIT_OUTDIR:?missing BESTHIT_OUTDIR in config}"
 
-[[ -s "$SAMPLES_FILE" ]] || { echo "ERROR: samples file not found: $SAMPLES_FILE" >&2; exit 1; }
+[[ -s "$SAMPLES_TSV" ]] || { echo "ERROR: samples TSV not found: $SAMPLES_TSV" >&2; exit 1; }
 mkdir -p logs "$DISCOVERY_OUTROOT" "$BESTHIT_OUTDIR"
 
-N=$(wc -l < "$SAMPLES_FILE")
-[[ "$N" -gt 0 ]] || { echo "ERROR: SAMPLES_FILE is empty: $SAMPLES_FILE" >&2; exit 1; }
+N=$(wc -l < "$SAMPLES_TSV")
+[[ "$N" -gt 0 ]] || { echo "ERROR: SAMPLES_TSV is empty: $SAMPLES_TSV" >&2; exit 1; }
 
 if [[ -z "${SLURM_ARRAY_TASK_ID:-}" ]]; then
   sbatch --array=1-${N}%${CONCURRENT} "$0" --config "$CONFIG" --concurrent "$CONCURRENT"
   exit 0
 fi
 
-LINE=$(sed -n "${SLURM_ARRAY_TASK_ID}p" "$SAMPLES_FILE" || true)
+LINE=$(sed -n "${SLURM_ARRAY_TASK_ID}p" "$SAMPLES_TSV" || true)
 [[ -n "$LINE" ]] || { echo "ERROR: empty line for task ${SLURM_ARRAY_TASK_ID}" >&2; exit 1; }
 IFS=$'\t' read -r SAMPLE_ID REAL_SPECIES REF_SPECIES <<< "$LINE"
 [[ -n "$SAMPLE_ID" ]] || { echo "ERROR: empty sample at task ${SLURM_ARRAY_TASK_ID}" >&2; exit 1; }
@@ -106,7 +107,7 @@ NUCLEAR_REF=${NUCLEAR_REF}
 MT_CONTIG=${MT_CONTIG}
 MT_LENGTH=${MT_LENGTH}
 DISCOVERY_OUTDIR=${SAMPLE_DISCOVERY_OUTDIR}
-SAMPLES_TSV=${SAMPLES_FILE}
+SAMPLES_TSV=${SAMPLES_TSV}
 WHOLE_REF_DIR=${WHOLE_REF_DIR}
 CHRM_REF_DIR=${CHRM_REF_DIR}
 BESTHIT_OUTDIR=${BESTHIT_OUTDIR}

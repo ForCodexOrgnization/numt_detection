@@ -45,9 +45,12 @@ Then submit once:
 bash submit_numt_end2end_array.sh --config numt_pipeline.config --concurrent 50
 ```
 
-This will automatically create a Slurm job array and process all rows in `SAMPLES_FILE`.
+This will automatically create a Slurm job array and process all rows in `SAMPLES_TSV`.
 For each sample, CRAM is searched in `CRAM_ROOT_1` first, then `CRAM_ROOT_2`.
 
 
 > 说明：`submit_numt_end2end_array.sh` 运行时会按每个样本动态写入 `INPUT_BAM_CRAM/INPUT_INDEX/WGS_REF/NUCLEAR_REF/DISCOVERY_OUTDIR` 到临时 config。
 > 所以 array 模式下主 config 不需要填写单样本 CRAM 路径。
+
+
+> 兼容旧配置：`submit_numt_end2end_array.sh` 仍可读取旧变量 `SAMPLES_FILE`，但建议统一使用 `SAMPLES_TSV`。
