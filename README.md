@@ -25,3 +25,9 @@ The same config is consumed by:
 - `run_numt_discovery.sh`
 - `process_numt_candidates_one_ready.sh`
 - `run_numt_end2end.sh`
+
+If CRAM/CRAI may exist in two locations, set both primary and fallback paths in config:
+- `INPUT_BAM_CRAM` / `INPUT_INDEX`
+- `INPUT_BAM_CRAM_ALT` / `INPUT_INDEX_ALT`
+
+When primary files are missing, the pipeline automatically falls back to the alternate paths.

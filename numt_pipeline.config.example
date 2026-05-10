@@ -3,6 +3,8 @@
 # ---------- Discovery inputs ----------
 INPUT_BAM_CRAM=/path/to/sample.cram
 INPUT_INDEX=/path/to/sample.cram.crai
+INPUT_BAM_CRAM_ALT=/path/to/alternate/sample.cram
+INPUT_INDEX_ALT=/path/to/alternate/sample.cram.crai
 SAMPLE=SAMPLE1
 MT_CONTIG=chrM
 MT_LENGTH=16569

@@ -22,7 +22,9 @@ Usage:
     [--min-reads 5] \\
     [--min-len 100] \\
     [--merge-gap 50] \\
-    [--pad 500]
+    [--pad 500] \
+    [--input-alt sample_alt.cram] \
+    [--index-alt sample_alt.cram.crai]
 
 Required:
   --input         Input BAM/CRAM
@@ -33,6 +35,8 @@ Required:
   --wgs-ref       Full reference fasta (required for CRAM)
   --nuclear-ref   Nuclear-only fasta used for remapping
   --outdir        Output directory
+  --input-alt     Optional alternate BAM/CRAM path if --input is missing
+  --index-alt     Optional alternate BAM/CRAM index path if --index is missing
 
 Notes:
   1. nuclear-only fasta should NOT contain chrM.
@@ -64,6 +68,8 @@ WGS_REF=""
 NUCLEAR_REF=""
 OUTDIR=""
 CONFIG=""
+INPUT_ALT=""
+INDEX_ALT=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -76,6 +82,8 @@ while [[ $# -gt 0 ]]; do
     --nuclear-ref) NUCLEAR_REF="$2"; shift 2 ;;
     --outdir) OUTDIR="$2"; shift 2 ;;
     --config) CONFIG="$2"; shift 2 ;;
+    --input-alt) INPUT_ALT="$2"; shift 2 ;;
+    --index-alt) INDEX_ALT="$2"; shift 2 ;;
     --threads) THREADS="$2"; shift 2 ;;
     --min-mapq) MIN_MAPQ="$2"; shift 2 ;;
     --min-depth) MIN_DEPTH="$2"; shift 2 ;;
@@ -102,6 +110,8 @@ if [[ -n "$CONFIG" ]]; then
   WGS_REF="${WGS_REF:-$WGS_REF}"
   NUCLEAR_REF="${NUCLEAR_REF:-$NUCLEAR_REF}"
   OUTDIR="${OUTDIR:-${DISCOVERY_OUTDIR:-$OUTDIR}}"
+  INPUT_ALT="${INPUT_ALT:-${INPUT_BAM_CRAM_ALT:-$INPUT_ALT}}"
+  INDEX_ALT="${INDEX_ALT:-${INPUT_INDEX_ALT:-$INDEX_ALT}}"
 
   THREADS="${THREADS:-$THREADS}"
   MIN_MAPQ="${MIN_MAPQ_DISCOVERY:-$MIN_MAPQ}"
@@ -110,6 +120,17 @@ if [[ -n "$CONFIG" ]]; then
   MIN_LEN="${MIN_LEN:-$MIN_LEN}"
   MERGE_GAP="${MERGE_GAP_DISCOVERY:-$MERGE_GAP}"
   PAD="${PAD:-$PAD}"
+fi
+
+# If primary input/index missing, fallback to alternate paths if provided
+if [[ -n "$INPUT" && ! -e "$INPUT" && -n "$INPUT_ALT" && -e "$INPUT_ALT" ]]; then
+  echo "[INFO] Primary --input not found. Using alternate input path: $INPUT_ALT"
+  INPUT="$INPUT_ALT"
+fi
+
+if [[ -n "$INDEX" && ! -e "$INDEX" && -n "$INDEX_ALT" && -e "$INDEX_ALT" ]]; then
+  echo "[INFO] Primary --index not found. Using alternate index path: $INDEX_ALT"
+  INDEX="$INDEX_ALT"
 fi
 
 ########################################
@@ -123,6 +144,8 @@ fi
 [[ -n "$WGS_REF" ]] || { echo "ERROR: --wgs-ref required" >&2; exit 1; }
 [[ -n "$NUCLEAR_REF" ]] || { echo "ERROR: --nuclear-ref required" >&2; exit 1; }
 [[ -n "$OUTDIR" ]] || { echo "ERROR: --outdir required" >&2; exit 1; }
+[[ -s "$INPUT" ]] || { echo "ERROR: input file not found or empty: $INPUT" >&2; exit 1; }
+[[ -s "$INDEX" ]] || { echo "ERROR: index file not found or empty: $INDEX" >&2; exit 1; }
 
 mkdir -p "$OUTDIR"/{tmp,logs,intermediate}
 
