@@ -11,6 +11,10 @@ TASK_ID="$2"
 RESULTS_ROOT="$3"
 NUCLEAR_ONLY_REF_DIR="$4"
 
+# Optional: directory for checking existing discovery results.
+# If not provided via env, default to RESULTS_ROOT.
+DISCOVERY_OUTROOT="${DISCOVERY_OUTROOT:-${RESULTS_ROOT}}"
+
 THREADS="${5:-8}"
 MIN_MAPQ="${6:-20}"
 MIN_DEPTH="${7:-3}"
@@ -35,6 +39,16 @@ IFS=$'\t' read -r SAMPLE_ID SPECIES_NAME REF_NAME <<< "${LINE}"
 
 [[ -n "${SAMPLE_ID}" ]] || { echo "ERROR: sample_id empty at task ${TASK_ID}" >&2; exit 1; }
 [[ -n "${REF_NAME}" ]] || { echo "ERROR: ref_name empty at task ${TASK_ID}" >&2; exit 1; }
+
+OUTDIR="${RESULTS_ROOT}/${SAMPLE_ID}"
+DISCOVERY_SAMPLE_OUTDIR="${DISCOVERY_OUTROOT}/${SAMPLE_ID}"
+
+# Skip this sample as early as possible when outputs already exist in DISCOVERY_OUTROOT.
+if [[ -f "${DISCOVERY_SAMPLE_OUTDIR}/${SAMPLE_ID}.numt_candidates.bed" ]] \
+  || [[ -f "${DISCOVERY_SAMPLE_OUTDIR}/${SAMPLE_ID}.numt_candidates.tsv" ]]; then
+  echo "Skip ${SAMPLE_ID}: existing discovery outputs found in ${DISCOVERY_SAMPLE_OUTDIR}"
+  exit 0
+fi
 
 resolve_cram_in_one_root() {
   local sample_id="$1"
@@ -137,8 +151,6 @@ if [[ -z "${MT_LENGTH}" ]]; then
   exit 1
 fi
 
-OUTDIR="${RESULTS_ROOT}/${SAMPLE_ID}"
-
 echo "========================================"
 echo "TASK_ID      : ${TASK_ID}"
 echo "SAMPLE_ID    : ${SAMPLE_ID}"
@@ -151,6 +163,7 @@ echo "NUCLEAR_REF  : ${NUCLEAR_REF}"
 echo "MT_CONTIG    : ${MT_CONTIG}"
 echo "MT_LENGTH    : ${MT_LENGTH}"
 echo "OUTDIR       : ${OUTDIR}"
+echo "DISCOVERY_OUTROOT : ${DISCOVERY_OUTROOT}"
 echo "========================================"
 
 bash run_numt_discovery.sh \

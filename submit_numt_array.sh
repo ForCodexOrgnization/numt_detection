@@ -15,6 +15,7 @@ set -euo pipefail
 WORKDIR="/nfs/roberts/pi/pi_njl27/lt692/numt_discovery"
 SAMPLES_TSV="/nfs/roberts/pi/pi_njl27/lt692/numt_discovery/primate_numt_test_list.txt"
 RESULTS_ROOT="/nfs/roberts/pi/pi_njl27/lt692/numt_discovery/results_strict_pad"
+DISCOVERY_OUTROOT="${DISCOVERY_OUTROOT:-${RESULTS_ROOT}}"
 NUCLEAR_ONLY_REF_DIR="/nfs/roberts/pi/pi_njl27/lt692/primate_ref_files/nuclear_only_refs"
 
 THREADS="${SLURM_CPUS_PER_TASK:-8}"
@@ -29,6 +30,7 @@ PAD=100
 cd "${WORKDIR}"
 mkdir -p logs
 mkdir -p "${RESULTS_ROOT}"
+mkdir -p "${DISCOVERY_OUTROOT}"
 
 module load SAMtools/1.21-GCC-13.3.0
 module load BWA/0.7.18-GCCcore-13.3.0
@@ -54,13 +56,16 @@ if [[ -z "${SAMPLE_ID}" ]]; then
   exit 0
 fi
 
-SAMPLE_OUTDIR="${RESULTS_ROOT}/${SAMPLE_ID}"
+SAMPLE_OUTDIR="${DISCOVERY_OUTROOT}/${SAMPLE_ID}"
 
-# 如果该样本目录下已经存在 *.numt_candidates.bed，则跳过
-if compgen -G "${SAMPLE_OUTDIR}"/*.numt_candidates.bed > /dev/null; then
-  echo "Skip ${SAMPLE_ID}: existing numt_candidates.bed found in ${SAMPLE_OUTDIR}"
+# 如果该样本目录下已经存在 discovery 结果，则跳过
+if [[ -f "${SAMPLE_OUTDIR}/${SAMPLE_ID}.numt_candidates.bed" ]] \
+  || [[ -f "${SAMPLE_OUTDIR}/${SAMPLE_ID}.numt_candidates.tsv" ]]; then
+  echo "Skip ${SAMPLE_ID}: existing discovery output found in ${SAMPLE_OUTDIR}"
   exit 0
 fi
+
+export DISCOVERY_OUTROOT
 
 bash run_numt_one_from_3col.sh \
   "${SAMPLES_TSV}" \
