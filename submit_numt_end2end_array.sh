@@ -101,6 +101,14 @@ MT_LENGTH=$(awk -v mt="$MT_CONTIG" '$1==mt{print $2; exit}' "${WGS_REF}.fai")
 [[ -n "$MT_LENGTH" ]] || { echo "ERROR: mt contig $MT_CONTIG not found in ${WGS_REF}.fai" >&2; exit 1; }
 
 SAMPLE_DISCOVERY_OUTDIR="${DISCOVERY_OUTROOT}/${SAMPLE_ID}"
+
+# Skip this sample when discovery outputs already exist.
+if compgen -G "${SAMPLE_DISCOVERY_OUTDIR}"/*.numt_candidates.bed > /dev/null \
+  || compgen -G "${SAMPLE_DISCOVERY_OUTDIR}"/*.numt_candidates.tsv > /dev/null; then
+  echo "Skip ${SAMPLE_ID}: existing discovery outputs found in ${SAMPLE_DISCOVERY_OUTDIR}"
+  exit 0
+fi
+
 TMP_CFG=$(mktemp "${TMPDIR:-/tmp}/${SAMPLE_ID}.numtcfg.XXXXXX")
 cp "$CONFIG" "$TMP_CFG"
 cat >> "$TMP_CFG" <<CFG
