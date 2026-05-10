@@ -11,6 +11,10 @@ TASK_ID="$2"
 RESULTS_ROOT="$3"
 NUCLEAR_ONLY_REF_DIR="$4"
 
+# Optional: directory for checking existing discovery results.
+# If not provided via env, default to RESULTS_ROOT.
+DISCOVERY_OUTROOT="${DISCOVERY_OUTROOT:-${RESULTS_ROOT}}"
+
 THREADS="${5:-8}"
 MIN_MAPQ="${6:-20}"
 MIN_DEPTH="${7:-3}"
@@ -138,6 +142,14 @@ if [[ -z "${MT_LENGTH}" ]]; then
 fi
 
 OUTDIR="${RESULTS_ROOT}/${SAMPLE_ID}"
+DISCOVERY_SAMPLE_OUTDIR="${DISCOVERY_OUTROOT}/${SAMPLE_ID}"
+
+# Skip this sample when corresponding outputs already exist in DISCOVERY_OUTROOT.
+if compgen -G "${DISCOVERY_SAMPLE_OUTDIR}"/*.numt_candidates.bed > /dev/null \
+  || compgen -G "${DISCOVERY_SAMPLE_OUTDIR}"/*.numt_candidates.tsv > /dev/null; then
+  echo "Skip ${SAMPLE_ID}: existing discovery outputs found in ${DISCOVERY_SAMPLE_OUTDIR}"
+  exit 0
+fi
 
 echo "========================================"
 echo "TASK_ID      : ${TASK_ID}"
@@ -151,6 +163,7 @@ echo "NUCLEAR_REF  : ${NUCLEAR_REF}"
 echo "MT_CONTIG    : ${MT_CONTIG}"
 echo "MT_LENGTH    : ${MT_LENGTH}"
 echo "OUTDIR       : ${OUTDIR}"
+echo "DISCOVERY_OUTROOT : ${DISCOVERY_OUTROOT}"
 echo "========================================"
 
 bash run_numt_discovery.sh \
