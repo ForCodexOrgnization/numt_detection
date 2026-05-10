@@ -31,3 +31,10 @@ MIN_PIDENT=90
 MIN_ALIGN_LENGTH=50
 MIN_MAPQ_BESTHIT=30
 MIN_NREADS=5
+
+# ---------- Slurm array mode (3-column sample file) ----------
+SAMPLES_FILE=/path/to/primate_numt_test_list.txt
+CRAM_ROOT_1=/path/to/cram_root_1
+CRAM_ROOT_2=/path/to/cram_root_2
+NUCLEAR_ONLY_REF_DIR=/path/to/nuclear_only_refs
+DISCOVERY_OUTROOT=/path/to/numt_discovery/results
