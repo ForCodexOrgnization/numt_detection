@@ -211,6 +211,22 @@ bwa mem \
 
 # validate BAM integrity before moving to final path
 samtools quickcheck -v "$NUC_BAM_TMP"
+
+NUC_REC_COUNT=$(samtools view -c "$NUC_BAM_TMP")
+if [[ "$NUC_REC_COUNT" -eq 0 ]]; then
+  echo "[$(date)] WARNING: remapped BAM has 0 records."
+  echo "[$(date)] No mt-related nuclear alignments found for ${SAMPLE}."
+
+  mv "$NUC_BAM_TMP" "$NUC_BAM"
+  : > "$BED_OUT"
+  : > "$TSV_OUT"
+
+  echo "[$(date)] Done (no candidates)."
+  echo "BED: $BED_OUT (empty)"
+  echo "TSV: $TSV_OUT (empty)"
+  exit 0
+fi
+
 samtools index -@ "$THREADS" "$NUC_BAM_TMP" "$NUC_BAI_TMP"
 samtools quickcheck -v "$NUC_BAM_TMP"
 
