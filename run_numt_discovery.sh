@@ -1,0 +1,202 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+########################################
+# Usage
+########################################
+usage() {
+  cat <<EOF
+Usage:
+  bash run_numt_discovery.sh \\
+    --input sample.cram \\
+    --index sample.cram.crai \\
+    --sample SAMPLE1 \\
+    --mt-contig chrM \\
+    --mt-length 16569 \\
+    --wgs-ref ref.fa \\
+    --nuclear-ref nuclear_only.fa \\
+    --outdir results/SAMPLE1 \\
+    [--threads 8] \\
+    [--min-mapq 20] \\
+    [--min-depth 3] \\
+    [--min-reads 5] \\
+    [--min-len 100] \\
+    [--merge-gap 50] \\
+    [--pad 500]
+
+Required:
+  --input         Input BAM/CRAM
+  --index         BAM/CRAM index
+  --sample        Sample name
+  --mt-contig     mt contig name, e.g. chrM
+  --mt-length     mt length, e.g. 16569
+  --wgs-ref       Full reference fasta (required for CRAM)
+  --nuclear-ref   Nuclear-only fasta used for remapping
+  --outdir        Output directory
+
+Notes:
+  1. nuclear-only fasta should NOT contain chrM.
+  2. bwa index should already be built for nuclear-only fasta.
+  3. samtools faidx should already be built for all fasta files.
+EOF
+}
+
+########################################
+# Defaults
+########################################
+THREADS=8
+MIN_MAPQ=20
+MIN_DEPTH=3
+MIN_READS=5
+MIN_LEN=100
+MERGE_GAP=50
+PAD=500
+
+########################################
+# Parse args
+########################################
+INPUT=""
+INDEX=""
+SAMPLE=""
+MT_CONTIG=""
+MT_LENGTH=""
+WGS_REF=""
+NUCLEAR_REF=""
+OUTDIR=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --input) INPUT="$2"; shift 2 ;;
+    --index) INDEX="$2"; shift 2 ;;
+    --sample) SAMPLE="$2"; shift 2 ;;
+    --mt-contig) MT_CONTIG="$2"; shift 2 ;;
+    --mt-length) MT_LENGTH="$2"; shift 2 ;;
+    --wgs-ref) WGS_REF="$2"; shift 2 ;;
+    --nuclear-ref) NUCLEAR_REF="$2"; shift 2 ;;
+    --outdir) OUTDIR="$2"; shift 2 ;;
+    --threads) THREADS="$2"; shift 2 ;;
+    --min-mapq) MIN_MAPQ="$2"; shift 2 ;;
+    --min-depth) MIN_DEPTH="$2"; shift 2 ;;
+    --min-reads) MIN_READS="$2"; shift 2 ;;
+    --min-len) MIN_LEN="$2"; shift 2 ;;
+    --merge-gap) MERGE_GAP="$2"; shift 2 ;;
+    --pad) PAD="$2"; shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "Unknown argument: $1" >&2; usage; exit 1 ;;
+  esac
+done
+
+########################################
+# Check inputs
+########################################
+[[ -n "$INPUT" ]] || { echo "ERROR: --input required" >&2; exit 1; }
+[[ -n "$INDEX" ]] || { echo "ERROR: --index required" >&2; exit 1; }
+[[ -n "$SAMPLE" ]] || { echo "ERROR: --sample required" >&2; exit 1; }
+[[ -n "$MT_CONTIG" ]] || { echo "ERROR: --mt-contig required" >&2; exit 1; }
+[[ -n "$MT_LENGTH" ]] || { echo "ERROR: --mt-length required" >&2; exit 1; }
+[[ -n "$WGS_REF" ]] || { echo "ERROR: --wgs-ref required" >&2; exit 1; }
+[[ -n "$NUCLEAR_REF" ]] || { echo "ERROR: --nuclear-ref required" >&2; exit 1; }
+[[ -n "$OUTDIR" ]] || { echo "ERROR: --outdir required" >&2; exit 1; }
+
+mkdir -p "$OUTDIR"/{tmp,logs,intermediate}
+
+LOG="$OUTDIR/logs/${SAMPLE}.numt_discovery.log"
+exec > >(tee -a "$LOG") 2>&1
+
+echo "[$(date)] Starting NUMT discovery for $SAMPLE"
+echo "Input: $INPUT"
+echo "Index: $INDEX"
+echo "mt contig: $MT_CONTIG"
+echo "mt length: $MT_LENGTH"
+echo "WGS ref: $WGS_REF"
+echo "Nuclear ref: $NUCLEAR_REF"
+echo "Outdir: $OUTDIR"
+
+########################################
+# Files
+########################################
+MT_BED="$OUTDIR/intermediate/${SAMPLE}.mt_region.bed"
+MT_FETCH_BAM="$OUTDIR/intermediate/${SAMPLE}.mt_fetch_pairs.bam"
+MT_FETCH_BAI="$OUTDIR/intermediate/${SAMPLE}.mt_fetch_pairs.bam.bai"
+
+R1_FQ="$OUTDIR/intermediate/${SAMPLE}.R1.fastq.gz"
+R2_FQ="$OUTDIR/intermediate/${SAMPLE}.R2.fastq.gz"
+SINGLE_FQ="$OUTDIR/intermediate/${SAMPLE}.single.fastq.gz"
+
+NUC_BAM="$OUTDIR/intermediate/${SAMPLE}.mt_related_to_nuclear.sorted.bam"
+NUC_BAI="$OUTDIR/intermediate/${SAMPLE}.mt_related_to_nuclear.sorted.bam.bai"
+
+BED_OUT="$OUTDIR/${SAMPLE}.numt_candidates.bed"
+TSV_OUT="$OUTDIR/${SAMPLE}.numt_candidates.tsv"
+
+########################################
+# Step 1. create mt BED
+########################################
+echo -e "${MT_CONTIG}\t1\t${MT_LENGTH}" > "$MT_BED"
+
+########################################
+# Step 2. fetch chrM reads + mates from WGS
+########################################
+# -P / --fetch-pairs fetches mates for reads overlapping region
+# For CRAM, -T ref.fa is required
+echo "[$(date)] Step 2: extracting mt reads + mates"
+
+samtools view \
+  -@ "$THREADS" \
+  -T "$WGS_REF" \
+  -P \
+  -L "$MT_BED" \
+  -b \
+  -h \
+  "$INPUT" > "$MT_FETCH_BAM"
+
+samtools index -@ "$THREADS" "$MT_FETCH_BAM" "$MT_FETCH_BAI"
+
+########################################
+# Step 3. BAM -> FASTQ
+########################################
+echo "[$(date)] Step 3: converting BAM to FASTQ"
+
+samtools fastq \
+  -@ "$THREADS" \
+  -1 "$R1_FQ" \
+  -2 "$R2_FQ" \
+  -0 /dev/null \
+  -s "$SINGLE_FQ" \
+  -n \
+  "$MT_FETCH_BAM"
+
+########################################
+# Step 4. align to nuclear-only reference
+########################################
+echo "[$(date)] Step 4: remapping to nuclear-only reference"
+
+bwa mem \
+  -t "$THREADS" \
+  -K 100000000 \
+  "$NUCLEAR_REF" \
+  "$R1_FQ" "$R2_FQ" \
+  | samtools sort -@ "$THREADS" -o "$NUC_BAM" -
+
+samtools index -@ "$THREADS" "$NUC_BAM" "$NUC_BAI"
+
+########################################
+# Step 5. discover sink loci
+########################################
+echo "[$(date)] Step 5: discovering candidate NUMT sink loci"
+
+python3 discover_numt_sinks.py \
+  --bam "$NUC_BAM" \
+  --sample "$SAMPLE" \
+  --min-mapq "$MIN_MAPQ" \
+  --min-depth "$MIN_DEPTH" \
+  --min-reads "$MIN_READS" \
+  --min-len "$MIN_LEN" \
+  --merge-gap "$MERGE_GAP" \
+  --pad "$PAD" \
+  --bed-out "$BED_OUT" \
+  --tsv-out "$TSV_OUT"
+
+echo "[$(date)] Done."
+echo "BED: $BED_OUT"
+echo "TSV: $TSV_OUT"
