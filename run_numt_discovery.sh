@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="${SLURM_SUBMIT_DIR:-$SCRIPT_DIR}"
+source "${REPO_DIR}/load_numt_modules.sh"
+
 ########################################
 # Usage
 ########################################
@@ -22,7 +26,9 @@ Usage:
     [--min-reads 5] \\
     [--min-len 100] \\
     [--merge-gap 50] \\
-    [--pad 500]
+    [--pad 500] \
+    [--input-alt sample_alt.cram] \
+    [--index-alt sample_alt.cram.crai]
 
 Required:
   --input         Input BAM/CRAM
@@ -33,6 +39,8 @@ Required:
   --wgs-ref       Full reference fasta (required for CRAM)
   --nuclear-ref   Nuclear-only fasta used for remapping
   --outdir        Output directory
+  --input-alt     Optional alternate BAM/CRAM path if --input is missing
+  --index-alt     Optional alternate BAM/CRAM index path if --index is missing
 
 Notes:
   1. nuclear-only fasta should NOT contain chrM.
@@ -63,6 +71,9 @@ MT_LENGTH=""
 WGS_REF=""
 NUCLEAR_REF=""
 OUTDIR=""
+CONFIG=""
+INPUT_ALT=""
+INDEX_ALT=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -74,6 +85,9 @@ while [[ $# -gt 0 ]]; do
     --wgs-ref) WGS_REF="$2"; shift 2 ;;
     --nuclear-ref) NUCLEAR_REF="$2"; shift 2 ;;
     --outdir) OUTDIR="$2"; shift 2 ;;
+    --config) CONFIG="$2"; shift 2 ;;
+    --input-alt) INPUT_ALT="$2"; shift 2 ;;
+    --index-alt) INDEX_ALT="$2"; shift 2 ;;
     --threads) THREADS="$2"; shift 2 ;;
     --min-mapq) MIN_MAPQ="$2"; shift 2 ;;
     --min-depth) MIN_DEPTH="$2"; shift 2 ;;
@@ -86,6 +100,43 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+
+if [[ -n "$CONFIG" ]]; then
+  [[ -s "$CONFIG" ]] || { echo "ERROR: --config file not found: $CONFIG" >&2; exit 1; }
+  # shellcheck disable=SC1090
+  source "$CONFIG"
+
+  INPUT="${INPUT:-${INPUT_BAM_CRAM:-$INPUT}}"
+  INDEX="${INDEX:-${INPUT_INDEX:-$INDEX}}"
+  SAMPLE="${SAMPLE:-$SAMPLE}"
+  MT_CONTIG="${MT_CONTIG:-$MT_CONTIG}"
+  MT_LENGTH="${MT_LENGTH:-$MT_LENGTH}"
+  WGS_REF="${WGS_REF:-$WGS_REF}"
+  NUCLEAR_REF="${NUCLEAR_REF:-$NUCLEAR_REF}"
+  OUTDIR="${OUTDIR:-${DISCOVERY_OUTDIR:-$OUTDIR}}"
+  INPUT_ALT="${INPUT_ALT:-${INPUT_BAM_CRAM_ALT:-$INPUT_ALT}}"
+  INDEX_ALT="${INDEX_ALT:-${INPUT_INDEX_ALT:-$INDEX_ALT}}"
+
+  THREADS="${THREADS:-$THREADS}"
+  MIN_MAPQ="${MIN_MAPQ_DISCOVERY:-$MIN_MAPQ}"
+  MIN_DEPTH="${MIN_DEPTH:-$MIN_DEPTH}"
+  MIN_READS="${MIN_READS:-$MIN_READS}"
+  MIN_LEN="${MIN_LEN:-$MIN_LEN}"
+  MERGE_GAP="${MERGE_GAP_DISCOVERY:-$MERGE_GAP}"
+  PAD="${PAD:-$PAD}"
+fi
+
+# If primary input/index missing, fallback to alternate paths if provided
+if [[ -n "$INPUT" && ! -e "$INPUT" && -n "$INPUT_ALT" && -e "$INPUT_ALT" ]]; then
+  echo "[INFO] Primary --input not found. Using alternate input path: $INPUT_ALT"
+  INPUT="$INPUT_ALT"
+fi
+
+if [[ -n "$INDEX" && ! -e "$INDEX" && -n "$INDEX_ALT" && -e "$INDEX_ALT" ]]; then
+  echo "[INFO] Primary --index not found. Using alternate index path: $INDEX_ALT"
+  INDEX="$INDEX_ALT"
+fi
+
 ########################################
 # Check inputs
 ########################################
@@ -97,6 +148,8 @@ done
 [[ -n "$WGS_REF" ]] || { echo "ERROR: --wgs-ref required" >&2; exit 1; }
 [[ -n "$NUCLEAR_REF" ]] || { echo "ERROR: --nuclear-ref required" >&2; exit 1; }
 [[ -n "$OUTDIR" ]] || { echo "ERROR: --outdir required" >&2; exit 1; }
+[[ -s "$INPUT" ]] || { echo "ERROR: input file not found or empty: $INPUT" >&2; exit 1; }
+[[ -s "$INDEX" ]] || { echo "ERROR: index file not found or empty: $INDEX" >&2; exit 1; }
 
 mkdir -p "$OUTDIR"/{tmp,logs,intermediate}
 
@@ -125,6 +178,8 @@ SINGLE_FQ="$OUTDIR/intermediate/${SAMPLE}.single.fastq.gz"
 
 NUC_BAM="$OUTDIR/intermediate/${SAMPLE}.mt_related_to_nuclear.sorted.bam"
 NUC_BAI="$OUTDIR/intermediate/${SAMPLE}.mt_related_to_nuclear.sorted.bam.bai"
+NUC_BAM_TMP="$OUTDIR/intermediate/${SAMPLE}.mt_related_to_nuclear.sorted.bam.tmp"
+NUC_BAI_TMP="$OUTDIR/intermediate/${SAMPLE}.mt_related_to_nuclear.sorted.bam.tmp.bai"
 
 BED_OUT="$OUTDIR/${SAMPLE}.numt_candidates.bed"
 TSV_OUT="$OUTDIR/${SAMPLE}.numt_candidates.tsv"
@@ -171,14 +226,41 @@ samtools fastq \
 ########################################
 echo "[$(date)] Step 4: remapping to nuclear-only reference"
 
+# avoid stale/truncated outputs from interrupted previous runs
+rm -f "$NUC_BAM" "$NUC_BAI" "$NUC_BAM_TMP" "$NUC_BAI_TMP"
+
 bwa mem \
   -t "$THREADS" \
   -K 100000000 \
   "$NUCLEAR_REF" \
   "$R1_FQ" "$R2_FQ" \
-  | samtools sort -@ "$THREADS" -o "$NUC_BAM" -
+  | samtools sort -@ "$THREADS" -o "$NUC_BAM_TMP" -
 
-samtools index -@ "$THREADS" "$NUC_BAM" "$NUC_BAI"
+# validate BAM integrity before moving to final path
+samtools quickcheck -v "$NUC_BAM_TMP"
+
+NUC_REC_COUNT=$(samtools view -c "$NUC_BAM_TMP")
+if [[ "$NUC_REC_COUNT" -eq 0 ]]; then
+  echo "[$(date)] WARNING: remapped BAM has 0 records."
+  echo "[$(date)] No mt-related nuclear alignments found for ${SAMPLE}."
+
+  mv "$NUC_BAM_TMP" "$NUC_BAM"
+  : > "$BED_OUT"
+  : > "$TSV_OUT"
+
+  echo "[$(date)] Done (no candidates)."
+  echo "BED: $BED_OUT (empty)"
+  echo "TSV: $TSV_OUT (empty)"
+  exit 0
+fi
+
+samtools index -@ "$THREADS" "$NUC_BAM_TMP" "$NUC_BAI_TMP"
+samtools quickcheck -v "$NUC_BAM_TMP"
+
+mv "$NUC_BAM_TMP" "$NUC_BAM"
+mv "$NUC_BAI_TMP" "$NUC_BAI"
+
+echo "[$(date)] Step 4 check: BAM + BAI ready"
 
 ########################################
 # Step 5. discover sink loci

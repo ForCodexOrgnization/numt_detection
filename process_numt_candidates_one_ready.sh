@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="${SLURM_SUBMIT_DIR:-$SCRIPT_DIR}"
+source "${REPO_DIR}/load_numt_modules.sh"
+
 # ============================================================
 # Ready-to-use defaults for your Yale HPC layout
 # Can still be overridden by command-line arguments.
@@ -45,10 +49,12 @@ MIN_PIDENT="$DEFAULT_MIN_PIDENT"
 MIN_ALIGN_LENGTH="$DEFAULT_MIN_ALIGN_LENGTH"
 MIN_MAPQ="$DEFAULT_MIN_MAPQ"
 MIN_NREADS="$DEFAULT_MIN_NREADS"
+CONFIG=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --bed) BED="$2"; shift 2 ;;
+    --config) CONFIG="$2"; shift 2 ;;
     --samples-tsv) SAMPLES_TSV="$2"; shift 2 ;;
     --whole-ref-dir) WHOLE_REF_DIR="$2"; shift 2 ;;
     --chrm-ref-dir) CHRM_REF_DIR="$2"; shift 2 ;;
@@ -63,6 +69,22 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ -n "$CONFIG" ]]; then
+  [[ -s "$CONFIG" ]] || { echo "ERROR: --config file not found: $CONFIG" >&2; exit 1; }
+  # shellcheck disable=SC1090
+  source "$CONFIG"
+
+  SAMPLES_TSV="${SAMPLES_TSV:-$SAMPLES_TSV}"
+  WHOLE_REF_DIR="${WHOLE_REF_DIR:-$WHOLE_REF_DIR}"
+  CHRM_REF_DIR="${CHRM_REF_DIR:-$CHRM_REF_DIR}"
+  OUTDIR="${BESTHIT_OUTDIR:-$OUTDIR}"
+  MERGE_GAP="${MERGE_GAP_BESTHIT:-$MERGE_GAP}"
+  MIN_PIDENT="${MIN_PIDENT:-$MIN_PIDENT}"
+  MIN_ALIGN_LENGTH="${MIN_ALIGN_LENGTH:-$MIN_ALIGN_LENGTH}"
+  MIN_MAPQ="${MIN_MAPQ_BESTHIT:-$MIN_MAPQ}"
+  MIN_NREADS="${MIN_NREADS:-$MIN_NREADS}"
+fi
+
 [[ -n "$BED" ]] || { echo "ERROR: missing --bed" >&2; usage; exit 1; }
 [[ -s "$BED" ]] || { echo "ERROR: input BED not found or empty: $BED" >&2; exit 1; }
 [[ -s "$SAMPLES_TSV" ]] || { echo "ERROR: samples TSV not found: $SAMPLES_TSV" >&2; exit 1; }
@@ -70,11 +92,6 @@ done
 [[ -d "$CHRM_REF_DIR" ]] || { echo "ERROR: chrM-ref dir not found: $CHRM_REF_DIR" >&2; exit 1; }
 
 mkdir -p "$OUTDIR"
-
-# Load modules
-module load BEDTools/2.31.1-GCC-13.3.0
-module load miniconda/24.11.3
-conda activate blast_env
 
 for exe in awk sort bedtools blastn makeblastdb; do
   command -v "$exe" >/dev/null 2>&1 || {
