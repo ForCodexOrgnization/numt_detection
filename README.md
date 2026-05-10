@@ -75,3 +75,8 @@ You can override before running, e.g.:
 export NUMT_MODULE_SAMTOOLS="SAMtools/1.22-GCC-14.2.0"
 export NUMT_CONDA_ENV="blast_env"
 ```
+
+
+### Slurm 报错：`load_numt_modules.sh: No such file or directory`
+这是因为 Slurm 在 `/var/spool/slurmd/...` 执行脚本时，当前目录不是仓库目录。
+现在脚本会优先使用 `SLURM_SUBMIT_DIR` 定位仓库并加载 `load_numt_modules.sh`。

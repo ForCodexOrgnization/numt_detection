@@ -9,7 +9,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/load_numt_modules.sh"
+REPO_DIR="${SLURM_SUBMIT_DIR:-$SCRIPT_DIR}"
+source "${REPO_DIR}/load_numt_modules.sh"
+cd "$REPO_DIR"
 
 usage() {
   cat <<USAGE
@@ -116,5 +118,5 @@ CHRM_REF_DIR=${CHRM_REF_DIR}
 BESTHIT_OUTDIR=${BESTHIT_OUTDIR}
 CFG
 
-bash run_numt_end2end.sh --config "$TMP_CFG"
+bash "${REPO_DIR}/run_numt_end2end.sh" --config "$TMP_CFG"
 rm -f "$TMP_CFG"
