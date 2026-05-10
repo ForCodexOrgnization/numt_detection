@@ -54,3 +54,24 @@ For each sample, CRAM is searched in `CRAM_ROOT_1` first, then `CRAM_ROOT_2`.
 
 
 > 兼容旧配置：`submit_numt_end2end_array.sh` 仍可读取旧变量 `SAMPLES_FILE`，但建议统一使用 `SAMPLES_TSV`。
+
+
+## Environment / module load
+
+Modules and environment are centralized in `load_numt_modules.sh`, which is sourced by:
+- `run_numt_discovery.sh`
+- `process_numt_candidates_one_ready.sh`
+- `submit_numt_end2end_array.sh`
+
+Default modules/env loaded:
+- `SAMtools/1.21-GCC-13.3.0`
+- `BWA/0.7.18-GCCcore-13.3.0`
+- `BEDTools/2.31.1-GCC-13.3.0`
+- `miniconda/24.11.3`
+- conda env: `blast_env`
+
+You can override before running, e.g.:
+```bash
+export NUMT_MODULE_SAMTOOLS="SAMtools/1.22-GCC-14.2.0"
+export NUMT_CONDA_ENV="blast_env"
+```

@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/load_numt_modules.sh"
+
 # ============================================================
 # Ready-to-use defaults for your Yale HPC layout
 # Can still be overridden by command-line arguments.
@@ -88,11 +91,6 @@ fi
 [[ -d "$CHRM_REF_DIR" ]] || { echo "ERROR: chrM-ref dir not found: $CHRM_REF_DIR" >&2; exit 1; }
 
 mkdir -p "$OUTDIR"
-
-# Load modules
-module load BEDTools/2.31.1-GCC-13.3.0
-module load miniconda/24.11.3
-conda activate blast_env
 
 for exe in awk sort bedtools blastn makeblastdb; do
   command -v "$exe" >/dev/null 2>&1 || {
