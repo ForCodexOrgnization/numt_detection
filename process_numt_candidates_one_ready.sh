@@ -45,10 +45,12 @@ MIN_PIDENT="$DEFAULT_MIN_PIDENT"
 MIN_ALIGN_LENGTH="$DEFAULT_MIN_ALIGN_LENGTH"
 MIN_MAPQ="$DEFAULT_MIN_MAPQ"
 MIN_NREADS="$DEFAULT_MIN_NREADS"
+CONFIG=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --bed) BED="$2"; shift 2 ;;
+    --config) CONFIG="$2"; shift 2 ;;
     --samples-tsv) SAMPLES_TSV="$2"; shift 2 ;;
     --whole-ref-dir) WHOLE_REF_DIR="$2"; shift 2 ;;
     --chrm-ref-dir) CHRM_REF_DIR="$2"; shift 2 ;;
@@ -62,6 +64,22 @@ while [[ $# -gt 0 ]]; do
     *) echo "ERROR: Unknown argument: $1" >&2; usage; exit 1 ;;
   esac
 done
+
+if [[ -n "$CONFIG" ]]; then
+  [[ -s "$CONFIG" ]] || { echo "ERROR: --config file not found: $CONFIG" >&2; exit 1; }
+  # shellcheck disable=SC1090
+  source "$CONFIG"
+
+  SAMPLES_TSV="${SAMPLES_TSV:-$SAMPLES_TSV}"
+  WHOLE_REF_DIR="${WHOLE_REF_DIR:-$WHOLE_REF_DIR}"
+  CHRM_REF_DIR="${CHRM_REF_DIR:-$CHRM_REF_DIR}"
+  OUTDIR="${BESTHIT_OUTDIR:-$OUTDIR}"
+  MERGE_GAP="${MERGE_GAP_BESTHIT:-$MERGE_GAP}"
+  MIN_PIDENT="${MIN_PIDENT:-$MIN_PIDENT}"
+  MIN_ALIGN_LENGTH="${MIN_ALIGN_LENGTH:-$MIN_ALIGN_LENGTH}"
+  MIN_MAPQ="${MIN_MAPQ_BESTHIT:-$MIN_MAPQ}"
+  MIN_NREADS="${MIN_NREADS:-$MIN_NREADS}"
+fi
 
 [[ -n "$BED" ]] || { echo "ERROR: missing --bed" >&2; usage; exit 1; }
 [[ -s "$BED" ]] || { echo "ERROR: input BED not found or empty: $BED" >&2; exit 1; }

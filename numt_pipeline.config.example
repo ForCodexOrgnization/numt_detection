@@ -1,0 +1,31 @@
+# End-to-end NUMT pipeline config
+
+# ---------- Discovery inputs ----------
+INPUT_BAM_CRAM=/path/to/sample.cram
+INPUT_INDEX=/path/to/sample.cram.crai
+SAMPLE=SAMPLE1
+MT_CONTIG=chrM
+MT_LENGTH=16569
+WGS_REF=/path/to/full_reference.fa
+NUCLEAR_REF=/path/to/nuclear_only.fa
+DISCOVERY_OUTDIR=/path/to/results/SAMPLE1
+
+# ---------- Discovery parameters ----------
+THREADS=8
+MIN_MAPQ_DISCOVERY=20
+MIN_DEPTH=3
+MIN_READS=5
+MIN_LEN=100
+MERGE_GAP_DISCOVERY=50
+PAD=500
+
+# ---------- Downstream(best hit) ----------
+SAMPLES_TSV=/path/to/samples.tsv
+WHOLE_REF_DIR=/path/to/whole_genomes_final
+CHRM_REF_DIR=/path/to/Refseq_chrM
+BESTHIT_OUTDIR=/path/to/primate_results_numt_besthit
+MERGE_GAP_BESTHIT=50
+MIN_PIDENT=90
+MIN_ALIGN_LENGTH=50
+MIN_MAPQ_BESTHIT=30
+MIN_NREADS=5

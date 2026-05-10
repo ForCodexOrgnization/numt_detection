@@ -63,6 +63,7 @@ MT_LENGTH=""
 WGS_REF=""
 NUCLEAR_REF=""
 OUTDIR=""
+CONFIG=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -74,6 +75,7 @@ while [[ $# -gt 0 ]]; do
     --wgs-ref) WGS_REF="$2"; shift 2 ;;
     --nuclear-ref) NUCLEAR_REF="$2"; shift 2 ;;
     --outdir) OUTDIR="$2"; shift 2 ;;
+    --config) CONFIG="$2"; shift 2 ;;
     --threads) THREADS="$2"; shift 2 ;;
     --min-mapq) MIN_MAPQ="$2"; shift 2 ;;
     --min-depth) MIN_DEPTH="$2"; shift 2 ;;
@@ -85,6 +87,30 @@ while [[ $# -gt 0 ]]; do
     *) echo "Unknown argument: $1" >&2; usage; exit 1 ;;
   esac
 done
+
+
+if [[ -n "$CONFIG" ]]; then
+  [[ -s "$CONFIG" ]] || { echo "ERROR: --config file not found: $CONFIG" >&2; exit 1; }
+  # shellcheck disable=SC1090
+  source "$CONFIG"
+
+  INPUT="${INPUT:-${INPUT_BAM_CRAM:-$INPUT}}"
+  INDEX="${INDEX:-${INPUT_INDEX:-$INDEX}}"
+  SAMPLE="${SAMPLE:-$SAMPLE}"
+  MT_CONTIG="${MT_CONTIG:-$MT_CONTIG}"
+  MT_LENGTH="${MT_LENGTH:-$MT_LENGTH}"
+  WGS_REF="${WGS_REF:-$WGS_REF}"
+  NUCLEAR_REF="${NUCLEAR_REF:-$NUCLEAR_REF}"
+  OUTDIR="${OUTDIR:-${DISCOVERY_OUTDIR:-$OUTDIR}}"
+
+  THREADS="${THREADS:-$THREADS}"
+  MIN_MAPQ="${MIN_MAPQ_DISCOVERY:-$MIN_MAPQ}"
+  MIN_DEPTH="${MIN_DEPTH:-$MIN_DEPTH}"
+  MIN_READS="${MIN_READS:-$MIN_READS}"
+  MIN_LEN="${MIN_LEN:-$MIN_LEN}"
+  MERGE_GAP="${MERGE_GAP_DISCOVERY:-$MERGE_GAP}"
+  PAD="${PAD:-$PAD}"
+fi
 
 ########################################
 # Check inputs
