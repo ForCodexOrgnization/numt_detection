@@ -184,6 +184,7 @@ NUC_BAI_TMP="$OUTDIR/intermediate/${SAMPLE}.mt_related_to_nuclear.sorted.bam.tmp
 BED_OUT="$OUTDIR/${SAMPLE}.numt_candidates.bed"
 TSV_OUT="$OUTDIR/${SAMPLE}.numt_candidates.tsv"
 DONE_OUT="$OUTDIR/${SAMPLE}.numt_discovery.done"
+HIGHCONF_OUT="$OUTDIR/${SAMPLE}.highconf_numt.bed"
 
 ########################################
 # Resume/skip guard
@@ -259,12 +260,14 @@ if [[ "$NUC_REC_COUNT" -eq 0 ]]; then
 
   mv "$NUC_BAM_TMP" "$NUC_BAM"
    : > "$BED_OUT"
+  : > "$HIGHCONF_OUT"
   echo -e "sample	chrom	start0	end0	length	nreads	mean_mapq	padded_start0	padded_end0	padded_length" > "$TSV_OUT"
   touch "$DONE_OUT"
 
   echo "[$(date)] Done (no candidates)."
   echo "BED: $BED_OUT (empty)"
-  echo "TSV: $TSV_OUT (empty)"
+  echo "HIGHCONF BED: $HIGHCONF_OUT (empty)"
+  echo "TSV: $TSV_OUT (header only)"
   exit 0
 fi
 
