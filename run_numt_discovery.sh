@@ -183,13 +183,15 @@ NUC_BAI_TMP="$OUTDIR/intermediate/${SAMPLE}.mt_related_to_nuclear.sorted.bam.tmp
 
 BED_OUT="$OUTDIR/${SAMPLE}.numt_candidates.bed"
 TSV_OUT="$OUTDIR/${SAMPLE}.numt_candidates.tsv"
+DONE_OUT="$OUTDIR/${SAMPLE}.numt_discovery.done"
 
 ########################################
 # Resume/skip guard
 ########################################
-if [[ -s "$BED_OUT" && -s "$TSV_OUT" ]]; then
-  echo "[$(date)] Existing outputs detected; sample appears completed."
+if [[ -f "$DONE_OUT" && -e "$BED_OUT" && -s "$TSV_OUT" ]]; then
+  echo "[$(date)] Existing completion marker detected; sample appears completed."
   echo "[$(date)] Skipping discovery for $SAMPLE"
+  echo "DONE: $DONE_OUT"
   echo "BED: $BED_OUT"
   echo "TSV: $TSV_OUT"
   exit 0
@@ -256,8 +258,9 @@ if [[ "$NUC_REC_COUNT" -eq 0 ]]; then
   echo "[$(date)] No mt-related nuclear alignments found for ${SAMPLE}."
 
   mv "$NUC_BAM_TMP" "$NUC_BAM"
-  : > "$BED_OUT"
-  : > "$TSV_OUT"
+   : > "$BED_OUT"
+  echo -e "sample	chrom	start0	end0	length	nreads	mean_mapq	padded_start0	padded_end0	padded_length" > "$TSV_OUT"
+  touch "$DONE_OUT"
 
   echo "[$(date)] Done (no candidates)."
   echo "BED: $BED_OUT (empty)"
@@ -290,6 +293,8 @@ python3 discover_numt_sinks.py \
   --bed-out "$BED_OUT" \
   --tsv-out "$TSV_OUT"
 
+touch "$DONE_OUT"
 echo "[$(date)] Done."
+echo "DONE: $DONE_OUT"
 echo "BED: $BED_OUT"
 echo "TSV: $TSV_OUT"
