@@ -59,6 +59,7 @@ MIN_READS=5
 MIN_LEN=100
 MERGE_GAP=50
 PAD=500
+FORCE_RERUN=0
 
 ########################################
 # Parse args
@@ -95,6 +96,7 @@ while [[ $# -gt 0 ]]; do
     --min-len) MIN_LEN="$2"; shift 2 ;;
     --merge-gap) MERGE_GAP="$2"; shift 2 ;;
     --pad) PAD="$2"; shift 2 ;;
+    --force-rerun) FORCE_RERUN=1; shift 1 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage; exit 1 ;;
   esac
@@ -189,7 +191,7 @@ HIGHCONF_OUT="$OUTDIR/${SAMPLE}.highconf_numt.bed"
 ########################################
 # Resume/skip guard
 ########################################
-if [[ -f "$DONE_OUT" && -e "$BED_OUT" && -s "$TSV_OUT" ]]; then
+if [[ "$FORCE_RERUN" -ne 1 && -f "$DONE_OUT" && -e "$BED_OUT" && -s "$TSV_OUT" ]]; then
   echo "[$(date)] Existing completion marker detected; sample appears completed."
   echo "[$(date)] Skipping discovery for $SAMPLE"
   echo "DONE: $DONE_OUT"

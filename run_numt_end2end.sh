@@ -31,9 +31,22 @@ source "$CONFIG"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BED_PATH="${DISCOVERY_OUTDIR}/${SAMPLE}.numt_candidates.bed"
+BESTHIT_DIR="${BESTHIT_OUTDIR:-/nfs/roberts/pi/pi_njl27/lt692/primate_results_numt_besthit}"
+HIGHCONF_PATH="${BESTHIT_DIR}/${SAMPLE}.highconf_numt.bed"
+
+if [[ -e "$HIGHCONF_PATH" ]]; then
+  echo "[$(date)] highconf output already exists, skipping sample: $HIGHCONF_PATH"
+  exit 0
+fi
+
+DISCOVERY_ARGS=(--config "$CONFIG")
+if [[ -e "$BED_PATH" && ! -s "$BED_PATH" ]]; then
+  echo "[$(date)] Empty candidate BED detected without highconf output; forcing discovery rerun from scratch."
+  DISCOVERY_ARGS+=(--force-rerun)
+fi
 
 echo "[$(date)] Running discovery..."
-bash "${SCRIPT_DIR}/run_numt_discovery.sh" --config "$CONFIG"
+bash "${SCRIPT_DIR}/run_numt_discovery.sh" "${DISCOVERY_ARGS[@]}"
 
 echo "[$(date)] Running best-hit analysis..."
 bash "${SCRIPT_DIR}/process_numt_candidates_one_ready.sh" \
