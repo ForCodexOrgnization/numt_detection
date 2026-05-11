@@ -185,6 +185,17 @@ BED_OUT="$OUTDIR/${SAMPLE}.numt_candidates.bed"
 TSV_OUT="$OUTDIR/${SAMPLE}.numt_candidates.tsv"
 
 ########################################
+# Resume/skip guard
+########################################
+if [[ -s "$BED_OUT" && -s "$TSV_OUT" ]]; then
+  echo "[$(date)] Existing outputs detected; sample appears completed."
+  echo "[$(date)] Skipping discovery for $SAMPLE"
+  echo "BED: $BED_OUT"
+  echo "TSV: $TSV_OUT"
+  exit 0
+fi
+
+########################################
 # Step 1. create mt BED
 ########################################
 echo -e "${MT_CONTIG}\t1\t${MT_LENGTH}" > "$MT_BED"
