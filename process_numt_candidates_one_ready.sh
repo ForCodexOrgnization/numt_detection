@@ -86,7 +86,7 @@ if [[ -n "$CONFIG" ]]; then
 fi
 
 [[ -n "$BED" ]] || { echo "ERROR: missing --bed" >&2; usage; exit 1; }
-[[ -s "$BED" ]] || { echo "ERROR: input BED not found or empty: $BED" >&2; exit 1; }
+[[ -e "$BED" ]] || { echo "ERROR: input BED not found: $BED" >&2; exit 1; }
 [[ -s "$SAMPLES_TSV" ]] || { echo "ERROR: samples TSV not found: $SAMPLES_TSV" >&2; exit 1; }
 [[ -d "$WHOLE_REF_DIR" ]] || { echo "ERROR: whole-ref dir not found: $WHOLE_REF_DIR" >&2; exit 1; }
 [[ -d "$CHRM_REF_DIR" ]] || { echo "ERROR: chrM-ref dir not found: $CHRM_REF_DIR" >&2; exit 1; }
@@ -119,6 +119,15 @@ chrm_ref="${CHRM_REF_DIR}/${ref_name}.fasta"
 prefix="${OUTDIR}/${sample_id}"
 besthit_tsv="${prefix}.numt_vs_chrM.besthit.tsv"
 highconf_bed="${prefix}.highconf_numt.bed"
+
+if [[ ! -s "$BED" ]]; then
+  echo "[INFO] Input BED is empty for ${sample_id}; writing empty highconf output and exiting."
+  : > "$highconf_bed"
+  echo -e "locus_id	nuclear_chrom	nuclear_start	nuclear_end	subject	pident	length	mismatch	gapopen	qstart	qend	sstart	send	evalue	bitscore	plus_nreads	plus_meanMAPQ	has_numt_signal" > "$besthit_tsv"
+  echo "[INFO] Wrote: $highconf_bed (empty)"
+  echo "[INFO] Wrote: $besthit_tsv (header only)"
+  exit 0
+fi
 
 tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/${sample_id}.numt_besthit.XXXXXX")
 cleanup() {
