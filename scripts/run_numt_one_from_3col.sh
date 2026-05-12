@@ -166,7 +166,7 @@ echo "OUTDIR       : ${OUTDIR}"
 echo "DISCOVERY_OUTROOT : ${DISCOVERY_OUTROOT}"
 echo "========================================"
 
-bash run_numt_discovery.sh \
+bash "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/run_numt_discovery.sh" \
   --input "${INPUT_CRAM}" \
   --index "${INPUT_CRAI}" \
   --sample "${SAMPLE_ID}" \
