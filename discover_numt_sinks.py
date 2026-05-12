@@ -19,53 +19,46 @@ def parse_args():
 
 def get_active_blocks(bam, min_mapq, min_depth):
     """
-    Build active blocks from pileup positions with depth >= min_depth.
+    Build active blocks from per-base depth >= min_depth using a sweep-line.
+
+    This avoids a whole-reference pileup walk, which can be very slow on
+    fragmented or very large references.
     """
-    active = defaultdict(list)  # chrom -> [(start0, end0_exclusive)]
-    for ref in bam.references:
-        last_pos = None
+    # chrom -> position event delta (+1 on interval start, -1 on end)
+    events = defaultdict(lambda: defaultdict(int))
+
+    for aln in bam.fetch(until_eof=False):
+        if aln.is_unmapped:
+            continue
+        if aln.mapping_quality < min_mapq:
+            continue
+
+        # aligned reference blocks from CIGAR (includes deletions in span)
+        for start0, end0 in aln.get_blocks():
+            if end0 <= start0:
+                continue
+            ev = events[aln.reference_name]
+            ev[start0] += 1
+            ev[end0] -= 1
+
+    active = defaultdict(list)
+    for chrom, ev in events.items():
+        depth = 0
         block_start = None
-        block_end = None
 
-        for col in bam.pileup(
-            ref,
-            truncate=False,
-            stepper="all",
-            min_base_quality=0,
-            ignore_overlaps=False,
-            ignore_orphans=False,
-            flag_filter=0
-        ):
-            pos0 = col.reference_pos
-            qnames = set()
+        for pos0 in sorted(ev):
+            prev_depth = depth
+            depth += ev[pos0]
 
-            for pr in col.pileups:
-                aln = pr.alignment
-                if aln.is_unmapped:
-                    continue
-                if aln.mapping_quality < min_mapq:
-                    continue
-                if pr.is_refskip:
-                    continue
-                # include deletions as evidence of presence in the region
-                qnames.add(aln.query_name)
+            # threshold crossing upward starts a block
+            if prev_depth < min_depth and depth >= min_depth:
+                block_start = pos0
+            # threshold crossing downward ends a block
+            elif prev_depth >= min_depth and depth < min_depth and block_start is not None:
+                active[chrom].append((block_start, pos0))
+                block_start = None
 
-            depth = len(qnames)
-            if depth >= min_depth:
-                if block_start is None:
-                    block_start = pos0
-                    block_end = pos0 + 1
-                else:
-                    if pos0 == block_end:
-                        block_end = pos0 + 1
-                    else:
-                        active[ref].append((block_start, block_end))
-                        block_start = pos0
-                        block_end = pos0 + 1
-                last_pos = pos0
-
-        if block_start is not None:
-            active[ref].append((block_start, block_end))
+        # no trailing close is needed because block ends at an event boundary
 
     return active
 

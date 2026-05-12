@@ -59,6 +59,7 @@ MIN_READS=5
 MIN_LEN=100
 MERGE_GAP=50
 PAD=500
+FORCE_RERUN=0
 
 ########################################
 # Parse args
@@ -95,6 +96,7 @@ while [[ $# -gt 0 ]]; do
     --min-len) MIN_LEN="$2"; shift 2 ;;
     --merge-gap) MERGE_GAP="$2"; shift 2 ;;
     --pad) PAD="$2"; shift 2 ;;
+    --force-rerun) FORCE_RERUN=1; shift 1 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage; exit 1 ;;
   esac
@@ -183,6 +185,20 @@ NUC_BAI_TMP="$OUTDIR/intermediate/${SAMPLE}.mt_related_to_nuclear.sorted.bam.tmp
 
 BED_OUT="$OUTDIR/${SAMPLE}.numt_candidates.bed"
 TSV_OUT="$OUTDIR/${SAMPLE}.numt_candidates.tsv"
+DONE_OUT="$OUTDIR/${SAMPLE}.numt_discovery.done"
+HIGHCONF_OUT="$OUTDIR/${SAMPLE}.highconf_numt.bed"
+
+########################################
+# Resume/skip guard
+########################################
+if [[ "$FORCE_RERUN" -ne 1 && -f "$DONE_OUT" && -e "$BED_OUT" && -s "$TSV_OUT" ]]; then
+  echo "[$(date)] Existing completion marker detected; sample appears completed."
+  echo "[$(date)] Skipping discovery for $SAMPLE"
+  echo "DONE: $DONE_OUT"
+  echo "BED: $BED_OUT"
+  echo "TSV: $TSV_OUT"
+  exit 0
+fi
 
 ########################################
 # Step 1. create mt BED
@@ -245,12 +261,15 @@ if [[ "$NUC_REC_COUNT" -eq 0 ]]; then
   echo "[$(date)] No mt-related nuclear alignments found for ${SAMPLE}."
 
   mv "$NUC_BAM_TMP" "$NUC_BAM"
-  : > "$BED_OUT"
-  : > "$TSV_OUT"
+   : > "$BED_OUT"
+  : > "$HIGHCONF_OUT"
+  echo -e "sample	chrom	start0	end0	length	nreads	mean_mapq	padded_start0	padded_end0	padded_length" > "$TSV_OUT"
+  touch "$DONE_OUT"
 
   echo "[$(date)] Done (no candidates)."
   echo "BED: $BED_OUT (empty)"
-  echo "TSV: $TSV_OUT (empty)"
+  echo "HIGHCONF BED: $HIGHCONF_OUT (empty)"
+  echo "TSV: $TSV_OUT (header only)"
   exit 0
 fi
 
@@ -279,6 +298,8 @@ python3 discover_numt_sinks.py \
   --bed-out "$BED_OUT" \
   --tsv-out "$TSV_OUT"
 
+touch "$DONE_OUT"
 echo "[$(date)] Done."
+echo "DONE: $DONE_OUT"
 echo "BED: $BED_OUT"
 echo "TSV: $TSV_OUT"
