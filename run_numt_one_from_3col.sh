@@ -35,7 +35,39 @@ if [[ -z "${LINE}" ]]; then
   exit 1
 fi
 
-IFS=$'\t' read -r SAMPLE_ID SPECIES_NAME REF_NAME <<< "${LINE}"
+PARSED_FIELDS=$(printf '%s\n' "$LINE" | awk -F'[\t,]' '
+{
+  n=0
+  for (i=1; i<=NF; i++) {
+    gsub(/^[[:space:]]+|[[:space:]]+$/, "", $i)
+    if ($i != "") {
+      n++
+      f[n]=$i
+      if (n==3) break
+    }
+  }
+  if (n < 3) {
+    n=split($0, raw, /[[:space:]]+/)
+    m=0
+    for (j=1; j<=n; j++) {
+      if (raw[j] != "") {
+        m++
+        f[m]=raw[j]
+        if (m==3) break
+      }
+    }
+    if (m >= 1) print f[1]
+    if (m >= 2) print f[2]
+    if (m >= 3) print f[3]
+  } else {
+    print f[1]
+    print f[2]
+    print f[3]
+  }
+}')
+SAMPLE_ID=$(printf '%s\n' "$PARSED_FIELDS" | sed -n '1p')
+SPECIES_NAME=$(printf '%s\n' "$PARSED_FIELDS" | sed -n '2p')
+REF_NAME=$(printf '%s\n' "$PARSED_FIELDS" | sed -n '3p')
 
 [[ -n "${SAMPLE_ID}" ]] || { echo "ERROR: sample_id empty at task ${TASK_ID}" >&2; exit 1; }
 [[ -n "${REF_NAME}" ]] || { echo "ERROR: ref_name empty at task ${TASK_ID}" >&2; exit 1; }

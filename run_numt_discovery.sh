@@ -262,13 +262,22 @@ if [[ "$HAS_PAIRED" -eq 0 && "$HAS_SINGLE" -eq 0 ]]; then
   exit 0
 fi
 
+PAIR_SAM_TMP="$OUTDIR/intermediate/${SAMPLE}.mt_related_to_nuclear.paired.sam"
+SINGLE_SAM_TMP="$OUTDIR/intermediate/${SAMPLE}.mt_related_to_nuclear.single.sam"
+rm -f "$PAIR_SAM_TMP" "$SINGLE_SAM_TMP"
+
 if [[ "$HAS_PAIRED" -eq 1 ]]; then
   bwa mem \
     -t "$THREADS" \
     -K 100000000 \
     "$NUCLEAR_REF" \
-    "$R1_FQ" "$R2_FQ" \
-    | samtools sort -@ "$THREADS" -o "$PAIR_BAM_TMP" -
+    "$R1_FQ" "$R2_FQ" > "$PAIR_SAM_TMP"
+  if [[ -s "$PAIR_SAM_TMP" ]] && samtools view -H "$PAIR_SAM_TMP" >/dev/null 2>&1; then
+    samtools sort -@ "$THREADS" -o "$PAIR_BAM_TMP" "$PAIR_SAM_TMP"
+  else
+    echo "[$(date)] WARNING: paired remap produced no valid SAM output; skipping paired BAM."
+    HAS_PAIRED=0
+  fi
 fi
 
 if [[ "$HAS_SINGLE" -eq 1 ]]; then
@@ -276,8 +285,25 @@ if [[ "$HAS_SINGLE" -eq 1 ]]; then
     -t "$THREADS" \
     -K 100000000 \
     "$NUCLEAR_REF" \
-    "$SINGLE_FQ" \
-    | samtools sort -@ "$THREADS" -o "$SINGLE_BAM_TMP" -
+    "$SINGLE_FQ" > "$SINGLE_SAM_TMP"
+  if [[ -s "$SINGLE_SAM_TMP" ]] && samtools view -H "$SINGLE_SAM_TMP" >/dev/null 2>&1; then
+    samtools sort -@ "$THREADS" -o "$SINGLE_BAM_TMP" "$SINGLE_SAM_TMP"
+  else
+    echo "[$(date)] WARNING: singleton remap produced no valid SAM output; skipping singleton BAM."
+    HAS_SINGLE=0
+  fi
+fi
+
+rm -f "$PAIR_SAM_TMP" "$SINGLE_SAM_TMP"
+
+if [[ "$HAS_PAIRED" -eq 0 && "$HAS_SINGLE" -eq 0 ]]; then
+  echo "[$(date)] WARNING: no valid remap outputs were produced."
+  : > "$BED_OUT"
+  : > "$HIGHCONF_OUT"
+  echo -e "sample\tchrom\tstart0\tend0\tlength\tnreads\tmean_mapq\tpadded_start0\tpadded_end0\tpadded_length" > "$TSV_OUT"
+  touch "$DONE_OUT"
+  echo "[$(date)] Done (no candidates)."
+  exit 0
 fi
 
 if [[ "$HAS_PAIRED" -eq 1 && "$HAS_SINGLE" -eq 1 ]]; then
