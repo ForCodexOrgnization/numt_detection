@@ -69,7 +69,40 @@ fi
 
 LINE=$(sed -n "${SLURM_ARRAY_TASK_ID}p" "$SAMPLES_TSV" || true)
 [[ -n "$LINE" ]] || { echo "ERROR: empty line for task ${SLURM_ARRAY_TASK_ID}" >&2; exit 1; }
-IFS=$'\t' read -r SAMPLE_ID REAL_SPECIES REF_SPECIES <<< "$LINE"
+# Support TSV/CSV/whitespace-delimited sample sheets to keep single-sample and Slurm modes consistent.
+PARSED_FIELDS=$(printf '%s\n' "$LINE" | awk -F'[\t,]' '
+{
+  n=0
+  for (i=1; i<=NF; i++) {
+    gsub(/^[[:space:]]+|[[:space:]]+$/, "", $i)
+    if ($i != "") {
+      n++
+      f[n]=$i
+      if (n==3) break
+    }
+  }
+  if (n < 3) {
+    n=split($0, raw, /[[:space:]]+/)
+    m=0
+    for (j=1; j<=n; j++) {
+      if (raw[j] != "") {
+        m++
+        f[m]=raw[j]
+        if (m==3) break
+      }
+    }
+    if (m >= 1) print f[1]
+    if (m >= 2) print f[2]
+    if (m >= 3) print f[3]
+  } else {
+    print f[1]
+    print f[2]
+    print f[3]
+  }
+}')
+SAMPLE_ID=$(printf '%s\n' "$PARSED_FIELDS" | sed -n '1p')
+REAL_SPECIES=$(printf '%s\n' "$PARSED_FIELDS" | sed -n '2p')
+REF_SPECIES=$(printf '%s\n' "$PARSED_FIELDS" | sed -n '3p')
 [[ -n "$SAMPLE_ID" ]] || { echo "ERROR: empty sample at task ${SLURM_ARRAY_TASK_ID}" >&2; exit 1; }
 [[ -n "$REF_SPECIES" ]] || { echo "ERROR: empty ref species at task ${SLURM_ARRAY_TASK_ID}" >&2; exit 1; }
 
@@ -102,12 +135,9 @@ MT_LENGTH=$(awk -v mt="$MT_CONTIG" '$1==mt{print $2; exit}' "${WGS_REF}.fai")
 
 SAMPLE_DISCOVERY_OUTDIR="${DISCOVERY_OUTROOT}/${SAMPLE_ID}"
 
-# Skip this sample when discovery outputs already exist.
-if compgen -G "${SAMPLE_DISCOVERY_OUTDIR}"/*.numt_candidates.bed > /dev/null \
-  || compgen -G "${SAMPLE_DISCOVERY_OUTDIR}"/*.numt_candidates.tsv > /dev/null; then
-  echo "Skip ${SAMPLE_ID}: existing discovery outputs found in ${SAMPLE_DISCOVERY_OUTDIR}"
-  exit 0
-fi
+# Do not skip solely on existing discovery outputs:
+# run_numt_end2end.sh handles skip logic using final highconf output status,
+# so best-hit can still run when discovery BED/TSV already exist.
 
 TMP_CFG=$(mktemp "${TMPDIR:-/tmp}/${SAMPLE_ID}.numtcfg.XXXXXX")
 cp "$CONFIG" "$TMP_CFG"
