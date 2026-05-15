@@ -243,14 +243,56 @@ samtools fastq \
 echo "[$(date)] Step 4: remapping to nuclear-only reference"
 
 # avoid stale/truncated outputs from interrupted previous runs
-rm -f "$NUC_BAM" "$NUC_BAI" "$NUC_BAM_TMP" "$NUC_BAI_TMP"
+PAIR_BAM_TMP="$OUTDIR/intermediate/${SAMPLE}.mt_related_to_nuclear.paired.sorted.bam"
+SINGLE_BAM_TMP="$OUTDIR/intermediate/${SAMPLE}.mt_related_to_nuclear.single.sorted.bam"
+rm -f "$NUC_BAM" "$NUC_BAI" "$NUC_BAM_TMP" "$NUC_BAI_TMP" "$PAIR_BAM_TMP" "$SINGLE_BAM_TMP"
 
-bwa mem \
-  -t "$THREADS" \
-  -K 100000000 \
-  "$NUCLEAR_REF" \
-  "$R1_FQ" "$R2_FQ" \
-  | samtools sort -@ "$THREADS" -o "$NUC_BAM_TMP" -
+HAS_PAIRED=0
+HAS_SINGLE=0
+if [[ -s "$R1_FQ" && -s "$R2_FQ" ]]; then
+  if gzip -cd "$R1_FQ" | head -n 1 | grep -q . && gzip -cd "$R2_FQ" | head -n 1 | grep -q .; then
+    HAS_PAIRED=1
+  fi
+fi
+if [[ -s "$SINGLE_FQ" ]] && gzip -cd "$SINGLE_FQ" | head -n 1 | grep -q .; then
+  HAS_SINGLE=1
+fi
+
+if [[ "$HAS_PAIRED" -eq 0 && "$HAS_SINGLE" -eq 0 ]]; then
+  echo "[$(date)] WARNING: no reads available for remapping (paired and singleton FASTQ are empty)."
+  : > "$BED_OUT"
+  : > "$HIGHCONF_OUT"
+  echo -e "sample\tchrom\tstart0\tend0\tlength\tnreads\tmean_mapq\tpadded_start0\tpadded_end0\tpadded_length" > "$TSV_OUT"
+  touch "$DONE_OUT"
+  echo "[$(date)] Done (no candidates)."
+  exit 0
+fi
+
+if [[ "$HAS_PAIRED" -eq 1 ]]; then
+  bwa mem \
+    -t "$THREADS" \
+    -K 100000000 \
+    "$NUCLEAR_REF" \
+    "$R1_FQ" "$R2_FQ" \
+    | samtools sort -@ "$THREADS" -o "$PAIR_BAM_TMP" -
+fi
+
+if [[ "$HAS_SINGLE" -eq 1 ]]; then
+  bwa mem \
+    -t "$THREADS" \
+    -K 100000000 \
+    "$NUCLEAR_REF" \
+    "$SINGLE_FQ" \
+    | samtools sort -@ "$THREADS" -o "$SINGLE_BAM_TMP" -
+fi
+
+if [[ "$HAS_PAIRED" -eq 1 && "$HAS_SINGLE" -eq 1 ]]; then
+  samtools merge -@ "$THREADS" -f "$NUC_BAM_TMP" "$PAIR_BAM_TMP" "$SINGLE_BAM_TMP"
+elif [[ "$HAS_PAIRED" -eq 1 ]]; then
+  mv "$PAIR_BAM_TMP" "$NUC_BAM_TMP"
+else
+  mv "$SINGLE_BAM_TMP" "$NUC_BAM_TMP"
+fi
 
 # validate BAM integrity before moving to final path
 samtools quickcheck -v "$NUC_BAM_TMP"
