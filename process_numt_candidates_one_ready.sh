@@ -103,8 +103,44 @@ done
 sample_id=$(basename "$BED")
 sample_id=${sample_id%.numt_candidates.bed}
 
-# sample_id in col1, ref_name in col3
-ref_name=$(awk -F'\t' -v s="$sample_id" '$1==s{print $3; exit}' "$SAMPLES_TSV")
+# sample_id in col1, ref_name in col3; support tab/comma/space-delimited sample sheets.
+ref_name=$(awk -v s="$sample_id" '
+function trim(x){ gsub(/^[[:space:]]+|[[:space:]]+$/, "", x); return x }
+{
+  line=$0
+  gsub(/\r/, "", line)
+  if (line ~ /^[[:space:]]*$/ || line ~ /^[[:space:]]*#/) next
+
+  n=split(line, a, /[\t,]/)
+  k=0
+  for (i=1; i<=n; i++) {
+    v=trim(a[i])
+    if (v != "") {
+      k++
+      f[k]=v
+      if (k==3) break
+    }
+  }
+
+  if (k < 3) {
+    n2=split(line, b, /[[:space:]]+/)
+    k=0
+    for (j=1; j<=n2; j++) {
+      v2=trim(b[j])
+      if (v2 != "") {
+        k++
+        f[k]=v2
+        if (k==3) break
+      }
+    }
+  }
+
+  if (k >= 3 && f[1] == s) {
+    print f[3]
+    exit
+  }
+}
+' "$SAMPLES_TSV")
 [[ -n "$ref_name" ]] || {
   echo "ERROR: sample $sample_id not found in $SAMPLES_TSV" >&2
   exit 1
