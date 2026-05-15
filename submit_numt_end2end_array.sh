@@ -135,12 +135,9 @@ MT_LENGTH=$(awk -v mt="$MT_CONTIG" '$1==mt{print $2; exit}' "${WGS_REF}.fai")
 
 SAMPLE_DISCOVERY_OUTDIR="${DISCOVERY_OUTROOT}/${SAMPLE_ID}"
 
-# Skip this sample when discovery outputs already exist.
-if compgen -G "${SAMPLE_DISCOVERY_OUTDIR}"/*.numt_candidates.bed > /dev/null \
-  || compgen -G "${SAMPLE_DISCOVERY_OUTDIR}"/*.numt_candidates.tsv > /dev/null; then
-  echo "Skip ${SAMPLE_ID}: existing discovery outputs found in ${SAMPLE_DISCOVERY_OUTDIR}"
-  exit 0
-fi
+# Do not skip solely on existing discovery outputs:
+# run_numt_end2end.sh handles skip logic using final highconf output status,
+# so best-hit can still run when discovery BED/TSV already exist.
 
 TMP_CFG=$(mktemp "${TMPDIR:-/tmp}/${SAMPLE_ID}.numtcfg.XXXXXX")
 cp "$CONFIG" "$TMP_CFG"
