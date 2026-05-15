@@ -26,6 +26,7 @@ done
 # shellcheck disable=SC1090
 source "$CONFIG"
 
+: "${SAMPLE:=${SAMPLE_ID:-}}"
 : "${SAMPLE:?missing SAMPLE in config}"
 : "${DISCOVERY_OUTDIR:?missing DISCOVERY_OUTDIR in config}"
 
